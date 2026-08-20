@@ -121,7 +121,7 @@ class _MissionResultScreenState extends State<MissionResultScreen> {
           children: [
             Expanded(
               child: pasos.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('No fue correcto. Inténtalo de nuevo.', style: AppTypography.body),
                     )
                   : ListView.separated(

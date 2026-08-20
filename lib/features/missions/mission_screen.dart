@@ -91,7 +91,7 @@ class _MissionScreenState extends State<MissionScreen> {
           final misiones = snap.data;
           final mision = misiones?.seleccion ?? misiones?.detectarError;
           if (mision == null) {
-            return const Center(
+            return Center(
               child: Padding(
                 padding: EdgeInsets.all(AppSpacing.xl),
                 child: Text(
