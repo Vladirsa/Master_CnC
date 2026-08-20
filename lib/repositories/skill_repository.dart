@@ -5,17 +5,20 @@ import '../models/skill.dart';
 class SkillRepository {
   final SupabaseClient _db = SupabaseService.client;
 
-  /// Trae solo la rama 'fundamentos' — único alcance del Ciclo 1
-  /// (Kickoff, sección 2). El resto de ramas se agregan en ciclos futuros
-  /// sin cambiar este método: solo cambia el filtro `rama`.
-  Future<List<Skill>> skillsDeRama(String rama) async {
+  /// Orden de ramas del árbol tal como lo define el Blueprint:
+  /// Fundamentos → Orígenes → Herramientas → CAM → Control.
+  /// (En este ciclo "Orígenes" vive dentro de "fundamentos" — ver seed.)
+  static const ordenRamas = ['fundamentos', 'herramientas', 'cam', 'control'];
+
+  /// Trae TODAS las skills del árbol (sin filtrar por rama), con el
+  /// progreso del usuario ya combinado. Antes (Ciclo 1) solo traía la
+  /// rama 'fundamentos' a propósito; desde que hay más de una rama con
+  /// contenido real, SkillMapScreen agrupa por rama en vez de que el
+  /// repositorio decida cuál mostrar.
+  Future<List<Skill>> todasLasSkills() async {
     final user = _db.auth.currentUser;
 
-    final skillsRaw = await _db
-        .from('skills')
-        .select()
-        .eq('rama', rama)
-        .order('codigo');
+    final skillsRaw = await _db.from('skills').select().order('codigo');
 
     if (user == null) {
       return (skillsRaw as List)
@@ -42,7 +45,8 @@ class SkillRepository {
   /// Actualiza el dominio de una skill tras completar una misión.
   /// Incremento simple en el MVP (+0.25 por acierto, tope 1.0) — el
   /// cálculo real de dominio por precisión/tiempo/intentos es del
-  /// Difficulty Engine completo (Ciclo 2).
+  /// Difficulty Engine completo (Ciclo 2, ya activo para dificultad global;
+  /// el dominio por-skill sigue esta regla simple por ahora).
   Future<void> registrarIntento({required String skillId, required bool correcto}) async {
     final user = _db.auth.currentUser;
     if (user == null) throw StateError('Sin sesión activa');
