@@ -54,7 +54,6 @@ jobs:
       - uses: subosito/flutter-action@v2
         with: { flutter-version: 3.19.6, channel: stable }
       - run: flutter create --org com.hetnacnc --project-name cnc_master_lab tmp_app
-      - run: cp -r lib/* tmp_app/lib/ && cp pubspec.yaml tmp_app/pubspec.yaml && cp l10n.yaml tmp_app/l10n.yaml
       - run: flutter pub get
         working-directory: tmp_app
       - run: >
