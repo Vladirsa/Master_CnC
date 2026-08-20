@@ -45,7 +45,7 @@ class _SkillMapScreenState extends State<SkillMapScreen> {
         }
         final skills = snap.data ?? [];
         if (skills.isEmpty) {
-          return const Center(
+          return Center(
             child: Padding(
               padding: EdgeInsets.all(AppSpacing.xl),
               child: Text(
