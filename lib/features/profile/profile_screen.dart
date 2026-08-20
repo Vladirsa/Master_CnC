@@ -34,7 +34,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return const Center(child: CircularProgressIndicator(color: AppColors.primary));
         }
         if (snap.hasError || !snap.hasData) {
-          return const Center(child: Text('No se pudo cargar tu perfil.', style: AppTypography.body));
+          return Center(child: Text('No se pudo cargar tu perfil.', style: AppTypography.body));
         }
         final perfil = snap.data!;
         return ListView(
