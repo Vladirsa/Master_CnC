@@ -1,0 +1,81 @@
+name: Build CNC Master Lab
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Install Android SDK 34
+        run: yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: 3.19.6, channel: stable }
+      - run: flutter create --org com.hetnacnc --project-name cnc_master_lab tmp_app
+      - name: Fix Gradle versions
+        run: |
+          sed -i 's/1.7.10/1.9.22/' tmp_app/android/settings.gradle
+          sed -i 's/"com.android.application" version "7.3.0"/"com.android.application" version "8.1.0"/' tmp_app/android/settings.gradle
+          sed -i 's/gradle-7.6.3-all.zip/gradle-8.3-all.zip/' tmp_app/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's/flutter.compileSdkVersion/34/' tmp_app/android/app/build.gradle
+          sed -i 's/flutter.targetSdkVersion/34/' tmp_app/android/app/build.gradle
+          sed -i 's/flutter.minSdkVersion/21/' tmp_app/android/app/build.gradle
+      - name: Add Internet Permission
+        run: |
+          MANIFEST="tmp_app/android/app/src/main/AndroidManifest.xml"
+          grep -q "INTERNET" "$MANIFEST" || sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <application/' "$MANIFEST"
+      - run: cp -r lib/* tmp_app/lib/ && cp pubspec.yaml tmp_app/pubspec.yaml && cp l10n.yaml tmp_app/l10n.yaml
+      - run: flutter pub get
+        working-directory: tmp_app
+      - run: >
+          flutter build apk --release --split-per-abi
+          --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+        working-directory: tmp_app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-release
+          path: tmp_app/build/app/outputs/flutter-apk/app-*-release.apk
+      # La firma con keystore real (KEYSTORE_BASE64/KEYSTORE_PASSWORD) se
+      # agrega cuando exista el keystore de producción — ver
+      # flutter-supabase-saas-mx/references/github_actions_template.md
+
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: 3.19.6, channel: stable }
+      - run: flutter create --org com.hetnacnc --project-name cnc_master_lab tmp_app
+      - run: cp -r lib/* tmp_app/lib/ && cp pubspec.yaml tmp_app/pubspec.yaml && cp l10n.yaml tmp_app/l10n.yaml
+      - run: flutter pub get
+        working-directory: tmp_app
+      - run: >
+          flutter build web --release --pwa-strategy=none
+          --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+        working-directory: tmp_app
+      - name: Anti-cache headers
+        run: |
+          cat > tmp_app/build/web/.htaccess << 'HTACCESS'
+          <IfModule mod_headers.c>
+            <FilesMatch "\.(html|js|json)$">
+              Header set Cache-Control "no-cache, no-store, must-revalidate"
+            </FilesMatch>
+          </IfModule>
+          HTACCESS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-release
+          path: tmp_app/build/web
+      # Deploy real por SFTP a hetnacnc.com se agrega cuando se confirme
+      # la ruta/subdominio (Blueprint sección 19, pregunta 1) — usar
+      # wlixcc/SFTP-Deploy-Action, NUNCA FTP (corrompe main.dart.js).
