@@ -15,11 +15,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
-      - name: Install Android SDK 34
-        run: yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
       - uses: subosito/flutter-action@v2
         with: { flutter-version: 3.19.6, channel: stable }
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses || true
       - run: flutter create --org com.hetnacnc --project-name cnc_master_lab tmp_app
+      - name: Verificar que Android se generó correctamente
+        run: |
+          MANIFEST="tmp_app/android/app/src/main/AndroidManifest.xml"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "ERROR: flutter create no generó $MANIFEST"
+            echo "Contenido de tmp_app:"
+            ls -la tmp_app
+            echo "Contenido de tmp_app/android (si existe):"
+            ls -la tmp_app/android 2>&1 || echo "no existe la carpeta android"
+            exit 1
+          fi
+          echo "OK: AndroidManifest.xml generado correctamente."
+      - name: Install Android SDK 34
+        run: |
+          SDKMANAGER=$(find "$ANDROID_SDK_ROOT" -iname "sdkmanager" -type f 2>/dev/null | head -1)
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERROR: no se encontró sdkmanager dentro de $ANDROID_SDK_ROOT"
+            find "$ANDROID_SDK_ROOT" -maxdepth 3
+            exit 1
+          fi
+          echo "Usando sdkmanager en: $SDKMANAGER"
+          yes | "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
       - name: Fix Gradle versions
         run: |
           sed -i 's/1.7.10/1.9.22/' tmp_app/android/settings.gradle
@@ -32,7 +54,8 @@ jobs:
         run: |
           MANIFEST="tmp_app/android/app/src/main/AndroidManifest.xml"
           grep -q "INTERNET" "$MANIFEST" || sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <application/' "$MANIFEST"
-           - run: flutter pub get
+      - run: cp -r lib/* tmp_app/lib/ && cp pubspec.yaml tmp_app/pubspec.yaml
+      - run: flutter pub get
         working-directory: tmp_app
       - run: >
           flutter build apk --release --split-per-abi
@@ -43,9 +66,6 @@ jobs:
         with:
           name: apk-release
           path: tmp_app/build/app/outputs/flutter-apk/app-*-release.apk
-      # La firma con keystore real (KEYSTORE_BASE64/KEYSTORE_PASSWORD) se
-      # agrega cuando exista el keystore de producción — ver
-      # flutter-supabase-saas-mx/references/github_actions_template.md
 
   build-web:
     runs-on: ubuntu-latest
@@ -54,6 +74,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with: { flutter-version: 3.19.6, channel: stable }
       - run: flutter create --org com.hetnacnc --project-name cnc_master_lab tmp_app
+      - run: cp -r lib/* tmp_app/lib/ && cp pubspec.yaml tmp_app/pubspec.yaml
       - run: flutter pub get
         working-directory: tmp_app
       - run: >
@@ -74,6 +95,3 @@ jobs:
         with:
           name: web-release
           path: tmp_app/build/web
-      # Deploy real por SFTP a hetnacnc.com se agrega cuando se confirme
-      # la ruta/subdominio (Blueprint sección 19, pregunta 1) — usar
-      # wlixcc/SFTP-Deploy-Action, NUNCA FTP (corrompe main.dart.js).
