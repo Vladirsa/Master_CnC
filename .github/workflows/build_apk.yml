@@ -32,8 +32,7 @@ jobs:
         run: |
           MANIFEST="tmp_app/android/app/src/main/AndroidManifest.xml"
           grep -q "INTERNET" "$MANIFEST" || sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <application/' "$MANIFEST"
-      - run: cp -r lib/* tmp_app/lib/ && cp pubspec.yaml tmp_app/pubspec.yaml && cp l10n.yaml tmp_app/l10n.yaml
-      - run: flutter pub get
+           - run: flutter pub get
         working-directory: tmp_app
       - run: >
           flutter build apk --release --split-per-abi
