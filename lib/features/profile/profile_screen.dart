@@ -57,7 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     alignment: Alignment.center,
                     decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                     child: Text('${perfil.nivel}',
-                        style: AppTypography.h2.copyWith(color: AppColors.background)),
+                        style: AppTypography.h2.copyWith(color: Colors.white)),
                   ),
                   const SizedBox(width: AppSpacing.lg),
                   Expanded(

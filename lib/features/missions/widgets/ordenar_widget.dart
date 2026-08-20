@@ -74,7 +74,7 @@ class _OrdenarWidgetState extends State<OrdenarWidget> {
                       decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                       child: Text('${i + 1}',
                           style: AppTypography.caption.copyWith(
-                              color: AppColors.background, fontWeight: FontWeight.w700)),
+                              color: Colors.white, fontWeight: FontWeight.w700)),
                     ),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(child: Text(paso.texto, style: AppTypography.body)),
