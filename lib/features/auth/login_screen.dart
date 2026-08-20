@@ -14,6 +14,12 @@ import '../../core/theme/app_typography.dart';
 /// Supabase manda el mismo correo, pero el usuario escribe el código
 /// directamente aquí. Cuando el dominio esté decidido, se puede volver
 /// a habilitar el enlace mágico como opción adicional, no como reemplazo.
+///
+/// NOTA DE DEPURACIÓN: los mensajes de error ahora muestran el detalle
+/// real que devuelve Supabase (ej. fallo de SMTP, límite de envíos) en
+/// vez de un texto genérico — útil mientras se termina de configurar el
+/// SMTP propio. Se puede simplificar el texto para el usuario final más
+/// adelante, una vez que el flujo esté estable.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -43,8 +49,10 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await SupabaseService.client.auth.signInWithOtp(email: correo);
       setState(() => _paso = _Paso.codigo);
+    } on AuthException catch (e) {
+      setState(() => _error = 'Supabase dice: ${e.message}');
     } catch (e) {
-      setState(() => _error = 'No se pudo enviar el código. Intenta de nuevo.');
+      setState(() => _error = 'Error inesperado: $e');
     } finally {
       setState(() => _enviando = false);
     }
@@ -67,8 +75,10 @@ class _LoginScreenState extends State<LoginScreen> {
         token: codigo,
       );
       // AuthGate escucha onAuthStateChange y avanza solo a HomeShell.
+    } on AuthException catch (e) {
+      setState(() => _error = 'Supabase dice: ${e.message}');
     } catch (e) {
-      setState(() => _error = 'Código incorrecto o vencido. Pide uno nuevo.');
+      setState(() => _error = 'Error inesperado: $e');
     } finally {
       if (mounted) setState(() => _enviando = false);
     }
@@ -135,7 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ? const SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background),
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               )
             : const Text('Enviar código'),
       ),
@@ -174,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ? const SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background),
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               )
             : const Text('Entrar'),
       ),
