@@ -52,7 +52,7 @@ class AppTheme {
         elevation: 0,
         titleTextStyle: AppTypography.h3,
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: AppColors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
