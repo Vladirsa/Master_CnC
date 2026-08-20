@@ -5,7 +5,7 @@ import '../../core/theme/app_typography.dart';
 import '../../models/skill.dart';
 import '../../repositories/skill_repository.dart';
 import '../shared/skill_node.dart';
-import '../missions/mission_screen.dart';
+import '../lessons/lesson_screen.dart';
 
 const _nombreRama = {
   'fundamentos': 'FUNDAMENTOS',
@@ -112,7 +112,7 @@ class _SkillMapScreenState extends State<SkillMapScreen> {
                       estado: estado,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => MissionScreen(skill: skill)),
+                        MaterialPageRoute(builder: (_) => LessonScreen(skill: skill)),
                       ).then((_) => _refrescar()),
                     ),
                   );
