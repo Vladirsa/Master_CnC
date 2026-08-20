@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ? const SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background),
               )
             : const Text('Enviar código'),
       ),
@@ -174,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ? const SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background),
               )
             : const Text('Entrar'),
       ),
