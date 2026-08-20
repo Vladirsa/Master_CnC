@@ -9,11 +9,15 @@ import '../../repositories/skill_repository.dart';
 import '../../repositories/player_repository.dart';
 import '../shared/chamfer_card.dart';
 import 'mission_result_screen.dart';
+import 'widgets/seleccion_widget.dart';
+import 'widgets/ordenar_widget.dart';
+import 'widgets/configurar_widget.dart';
 
-/// Pantalla de Misión — Kickoff sección 5: un solo componente que
-/// renderiza según `tipo` de mission_templates ('seleccion' y
-/// 'detectar_error' en este ciclo). El texto viene de `contenido` jsonb,
-/// nunca hardcodeado aquí.
+/// Pantalla de Misión — Ciclo 2: ahora recorre TODAS las misiones
+/// disponibles de la skill (no solo 'seleccion'/'detectar_error' fijos),
+/// una a la vez, sin importar el orden en que se hayan cargado en Supabase.
+/// El widget de respuesta cambia según `tipo`, pero el flujo alrededor
+/// (tarjeta, XP, botón) es el mismo para los 4 tipos.
 class MissionScreen extends StatefulWidget {
   final Skill skill;
   const MissionScreen({super.key, required this.skill});
@@ -27,27 +31,62 @@ class _MissionScreenState extends State<MissionScreen> {
   final _skillRepo = SkillRepository();
   final _playerRepo = PlayerRepository();
 
-  late Future<_MisionesDeSkill> _future;
-  String? _opcionSeleccionada;
+  late Future<List<MissionTemplate>> _future;
+  int _indice = 0;
+
+  // Estado de respuesta en construcción — cada widget de tipo lo actualiza.
+  String? _opcionSeleccionada; // seleccion / detectar_error
+  List<String>? _ordenPropuesto; // ordenar
+  Map<String, String> _seleccionParametros = {}; // configurar: parametroId -> opcionId
 
   @override
   void initState() {
     super.initState();
-    _future = _cargarMisiones();
+    _future = _missionRepo.obtenerMisionesDeSkill(widget.skill.id);
   }
 
-  Future<_MisionesDeSkill> _cargarMisiones() async {
-    final seleccion =
-        await _missionRepo.obtenerMision(skillId: widget.skill.id, tipo: 'seleccion');
-    final detectarError =
-        await _missionRepo.obtenerMision(skillId: widget.skill.id, tipo: 'detectar_error');
-    return _MisionesDeSkill(seleccion: seleccion, detectarError: detectarError);
+  void _resetRespuesta() {
+    _opcionSeleccionada = null;
+    _ordenPropuesto = null;
+    _seleccionParametros = {};
+  }
+
+  bool _respuestaCompleta(MissionTemplate m) {
+    switch (m.tipo) {
+      case MissionTipo.seleccion:
+      case MissionTipo.detectarError:
+        return _opcionSeleccionada != null;
+      case MissionTipo.ordenar:
+        return _ordenPropuesto != null;
+      case MissionTipo.configurar:
+        return _seleccionParametros.length == m.parametros.length;
+    }
+  }
+
+  bool _esCorrecto(MissionTemplate m) {
+    switch (m.tipo) {
+      case MissionTipo.seleccion:
+      case MissionTipo.detectarError:
+        return _opcionSeleccionada == m.respuestaCorrectaId;
+      case MissionTipo.ordenar:
+        final propuesto = _ordenPropuesto ?? [];
+        if (propuesto.length != m.ordenCorrecto.length) return false;
+        for (var i = 0; i < propuesto.length; i++) {
+          if (propuesto[i] != m.ordenCorrecto[i]) return false;
+        }
+        return true;
+      case MissionTipo.configurar:
+        for (final p in m.parametros) {
+          if (_seleccionParametros[p.id] != p.valorCorrectoId) return false;
+        }
+        return true;
+    }
   }
 
   Future<void> _responder(MissionTemplate mision) async {
-    final correcto = _opcionSeleccionada == mision.respuestaCorrectaId;
+    final correcto = _esCorrecto(mision);
 
-    await _missionRepo.registrarIntento(
+    final conceptoDebil = await _missionRepo.registrarIntento(
       templateId: mision.id,
       correcto: correcto,
       errorCodigo: mision.errorCodigoSiFalla,
@@ -57,6 +96,7 @@ class _MissionScreenState extends State<MissionScreen> {
     if (correcto) {
       await _playerRepo.otorgarXp(cantidad: mision.xpRecompensa, motivo: 'mision_completada');
     }
+    final nuevaDificultad = await _playerRepo.recalcularDificultad();
 
     if (!mounted) return;
     final reintentar = await Navigator.push<bool>(
@@ -66,13 +106,16 @@ class _MissionScreenState extends State<MissionScreen> {
           correcto: correcto,
           xpGanado: correcto ? mision.xpRecompensa : 0,
           errorCodigo: correcto ? null : mision.errorCodigoSiFalla,
+          conceptoDebil: conceptoDebil,
+          nuevaDificultad: nuevaDificultad.name,
         ),
       ),
     );
 
+    if (!mounted) return;
     if (reintentar == true) {
-      setState(() => _opcionSeleccionada = null);
-    } else if (mounted) {
+      setState(_resetRespuesta);
+    } else {
       Navigator.pop(context);
     }
   }
@@ -82,15 +125,14 @@ class _MissionScreenState extends State<MissionScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: Text(widget.skill.nombre)),
-      body: FutureBuilder<_MisionesDeSkill>(
+      body: FutureBuilder<List<MissionTemplate>>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
           }
-          final misiones = snap.data;
-          final mision = misiones?.seleccion ?? misiones?.detectarError;
-          if (mision == null) {
+          final misiones = snap.data ?? [];
+          if (misiones.isEmpty) {
             return Center(
               child: Padding(
                 padding: EdgeInsets.all(AppSpacing.xl),
@@ -103,6 +145,8 @@ class _MissionScreenState extends State<MissionScreen> {
             );
           }
 
+          final mision = misiones[_indice % misiones.length];
+
           return Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
@@ -113,13 +157,19 @@ class _MissionScreenState extends State<MissionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        mision.tipo == MissionTipo.seleccion ? 'SELECCIÓN' : 'DETECTAR ERROR',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.ramaColor(widget.skill.rama),
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.2,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            missionTipoLabel(mision.tipo),
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.ramaColor(widget.skill.rama),
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text('${_indice + 1}/${misiones.length}', style: AppTypography.caption),
+                        ],
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(mision.pregunta, style: AppTypography.h3),
@@ -135,37 +185,10 @@ class _MissionScreenState extends State<MissionScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: mision.opciones.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                    itemBuilder: (context, i) {
-                      final opcion = mision.opciones[i];
-                      final seleccionada = _opcionSeleccionada == opcion.id;
-                      return InkWell(
-                        onTap: () => setState(() => _opcionSeleccionada = opcion.id),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        child: Container(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          decoration: BoxDecoration(
-                            color: seleccionada
-                                ? AppColors.primary.withOpacity(0.12)
-                                : AppColors.surfaceAlt,
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                            border: Border.all(
-                              color: seleccionada ? AppColors.primary : AppColors.border,
-                              width: seleccionada ? 1.5 : 1,
-                            ),
-                          ),
-                          child: Text(opcion.texto, style: AppTypography.body),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                Expanded(child: _widgetDeRespuesta(mision)),
                 const SizedBox(height: AppSpacing.md),
                 ElevatedButton(
-                  onPressed: _opcionSeleccionada == null ? null : () => _responder(mision),
+                  onPressed: _respuestaCompleta(mision) ? () => _responder(mision) : null,
                   child: const Text('Confirmar respuesta'),
                 ),
               ],
@@ -175,10 +198,29 @@ class _MissionScreenState extends State<MissionScreen> {
       ),
     );
   }
-}
 
-class _MisionesDeSkill {
-  final MissionTemplate? seleccion;
-  final MissionTemplate? detectarError;
-  _MisionesDeSkill({this.seleccion, this.detectarError});
+  Widget _widgetDeRespuesta(MissionTemplate mision) {
+    switch (mision.tipo) {
+      case MissionTipo.seleccion:
+      case MissionTipo.detectarError:
+        return SeleccionWidget(
+          opciones: mision.opciones,
+          seleccionada: _opcionSeleccionada,
+          onSeleccionar: (id) => setState(() => _opcionSeleccionada = id),
+        );
+      case MissionTipo.ordenar:
+        return OrdenarWidget(
+          pasos: mision.pasos,
+          onOrdenChanged: (orden) => setState(() => _ordenPropuesto = orden),
+        );
+      case MissionTipo.configurar:
+        return ConfigurarWidget(
+          parametros: mision.parametros,
+          seleccion: _seleccionParametros,
+          onCambiar: (parametroId, opcionId) => setState(() {
+            _seleccionParametros = {..._seleccionParametros, parametroId: opcionId};
+          }),
+        );
+    }
+  }
 }

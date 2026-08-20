@@ -10,16 +10,24 @@ import '../../repositories/mission_repository.dart';
 /// Si falla: Error → Causa → Consecuencia → Explicación → Corrección,
 /// revelados uno a uno (no todo el texto de golpe) — reduce sensación
 /// de "regaño", coherente con "no castigar excesivamente el error".
+///
+/// Ciclo 2: agrega dos avisos del Difficulty Engine (Blueprint sección 9):
+/// - `conceptoDebil`: mismo error ≥3 veces → sugerencia de repaso.
+/// - `nuevaDificultad`: si el nivel de dificultad cambió tras este intento.
 class MissionResultScreen extends StatefulWidget {
   final bool correcto;
   final int xpGanado;
   final String? errorCodigo;
+  final bool conceptoDebil;
+  final String? nuevaDificultad;
 
   const MissionResultScreen({
     super.key,
     required this.correcto,
     required this.xpGanado,
     this.errorCodigo,
+    this.conceptoDebil = false,
+    this.nuevaDificultad,
   });
 
   @override
@@ -81,6 +89,10 @@ class _MissionResultScreenState extends State<MissionResultScreen> {
                   Text('+${widget.xpGanado} XP', style: AppTypography.h3),
                 ],
               ),
+              if (widget.nuevaDificultad != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                _AvisoDificultad(dificultad: widget.nuevaDificultad!),
+              ],
               const SizedBox(height: AppSpacing.xxl),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -119,6 +131,10 @@ class _MissionResultScreenState extends State<MissionResultScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.conceptoDebil) ...[
+              const _AvisoConceptoDebil(),
+              const SizedBox(height: AppSpacing.md),
+            ],
             Expanded(
               child: pasos.isEmpty
                   ? Center(
@@ -182,6 +198,70 @@ class _MissionResultScreenState extends State<MissionResultScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Difficulty Engine (Ciclo 2): "mismo error ≥3 veces → concepto débil".
+/// Aviso suave, sin bloquear — la Recovery Mission con contenido propio
+/// llega en el Ciclo 3; por ahora solo se le avisa al jugador qué repasar.
+class _AvisoConceptoDebil extends StatelessWidget {
+  const _AvisoConceptoDebil();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lightbulb_outline, color: AppColors.warning, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Notamos que este concepto se te sigue complicando. Vale la pena repasarlo con calma.',
+              style: AppTypography.caption.copyWith(color: AppColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AvisoDificultad extends StatelessWidget {
+  final String dificultad;
+  const _AvisoDificultad({required this.dificultad});
+
+  @override
+  Widget build(BuildContext context) {
+    final etiqueta = {
+      'principiante': 'Principiante',
+      'intermedio': 'Intermedio',
+      'avanzado': 'Avanzado',
+      'profesional': 'Profesional',
+    }[dificultad] ?? dificultad;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.primary.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.trending_up, color: AppColors.primary, size: 18),
+          const SizedBox(width: 6),
+          Text('Dificultad actual: $etiqueta',
+              style: AppTypography.caption.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
